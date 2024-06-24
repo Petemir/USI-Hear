@@ -5,9 +5,6 @@ from scipy.interpolate import interp1d
 from math import floor
 import numpy as np
 
-PATH_DATA_RESAMPLED = PATH_DATASET / "raw_resampled"
-PATH_DATA_RESAMPLED.mkdir(parents=True, exist_ok=True)
-
 for path_participant in [p_dir for p_dir in PATH_DATA_RAW.glob("*") if p_dir.is_dir()]:
     participant = path_participant.name
     print(participant)
@@ -58,17 +55,17 @@ for path_participant in [p_dir for p_dir in PATH_DATA_RAW.glob("*") if p_dir.is_
             
             common_time_vector = np.arange(sample_timestamp_min, sample_timestamp_max, period_new)
             interpolated_data = []
-            for sensor in sensor_names:
+            for sensor in SENSORS:
                 interp_func = interp1d(df.Timestamp, df.loc[:, sensor], kind='cubic', fill_value="extrapolate")
                 interpolated_data.append(interp_func(common_time_vector))
 
-            df_resampled = pd.DataFrame(data=np.stack(interpolated_data, axis=-1), index=common_time_vector, columns=sensor_names)
+            df_resampled = pd.DataFrame(data=np.stack(interpolated_data, axis=-1), index=common_time_vector, columns=SENSORS)
             df_resampled.reset_index(names="Timestamp", inplace=True)
             df_resampled[["Participant", "Activity", "Label"]] = [participant, df_activity, df_label]
 
             path_output = PATH_DATA_RESAMPLED / "interpolation" / str(freq_new) / participant / file_act.name
             path_output.parent.mkdir(parents=True, exist_ok=True)
-            df_resampled.to_csv(path_output, index=None)
+            df_resampled.to_csv(path_output)
 
             for method in ["polynomial", "spline"]:
                 failed = True
@@ -85,12 +82,13 @@ for path_participant in [p_dir for p_dir in PATH_DATA_RAW.glob("*") if p_dir.is_
 
                     path_output = PATH_DATA_RESAMPLED / method / str(freq_new) / participant / file_act.name                        
                     try:
-                        df_resampled = df[sensor_names].resample(str(period_new)+'s').interpolate(method=method, order=3).dropna()
+                        df_resampled = df[SENSORS].resample(str(period_new)+'s').interpolate(method=method, order=3).dropna()
                         df_resampled.reset_index(names="Timestamp", inplace=True)
+                        df_resampled.Timestamp = df_resampled.Timestamp.apply(lambda x: x.timestamp())
                         df_resampled[["Participant", "Activity", "Label"]] = [participant, df_activity, df_label]
 
                         path_output.parent.mkdir(parents=True, exist_ok=True)
-                        df_resampled.to_csv(path_output, index=None)
+                        df_resampled.to_csv(path_output)
                         failed = False
                     except:
                         failed = True
